@@ -3,6 +3,7 @@ A Substack-to-Markdown scraper with YAML frontmatter and pandoc footnote support
 
 ## Usage
 ```bash
+uv tool install .
 substack2md "https://example.substack.com/p/post-slug"
 ```
 
