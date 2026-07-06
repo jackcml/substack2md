@@ -13,7 +13,9 @@ def main(argv: list[str] | None = None) -> int:
         prog="substack2md",
         description="Convert a public Substack post URL or local HTML file to Markdown.",
     )
-    parser.add_argument("source", help="Substack URL, or a local .html file with --from-file")
+    parser.add_argument(
+        "source", help="Substack URL, or a local .html file with --from-file"
+    )
     parser.add_argument(
         "-o",
         "--output",
