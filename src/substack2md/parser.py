@@ -54,7 +54,11 @@ def slugify(value: str) -> str:
 
 def _extract_metadata(soup: BeautifulSoup, source_url: str | None) -> PostMetadata:
     article_data = _find_news_article_json_ld(soup)
-    canonical_url = _text(article_data.get("url")) or _attr(soup, 'link[rel="canonical"]', "href") or source_url
+    canonical_url = (
+        _text(article_data.get("url"))
+        or _attr(soup, 'link[rel="canonical"]', "href")
+        or source_url
+    )
     title = (
         _text(article_data.get("headline"))
         or _select_text(soup, "article.newsletter-post h1.post-title")
@@ -67,8 +71,13 @@ def _extract_metadata(soup: BeautifulSoup, source_url: str | None) -> PostMetada
         or _meta(soup, "name", "description")
     )
     author = _author_name(article_data.get("author")) or _meta(soup, "name", "author")
-    date = _date_only(_text(article_data.get("datePublished")) or _meta(soup, "property", "article:published_time"))
-    hero_image = _image_url(article_data.get("image")) or _meta(soup, "property", "og:image")
+    date = _date_only(
+        _text(article_data.get("datePublished"))
+        or _meta(soup, "property", "article:published_time")
+    )
+    hero_image = _image_url(article_data.get("image")) or _meta(
+        soup, "property", "og:image"
+    )
     return PostMetadata(
         title=title,
         subtitle=subtitle,
@@ -89,7 +98,11 @@ def _find_news_article_json_ld(soup: BeautifulSoup) -> dict[str, Any]:
             continue
         entries = data if isinstance(data, list) else [data]
         for entry in entries:
-            if isinstance(entry, dict) and entry.get("@type") in {"NewsArticle", "Article", "BlogPosting"}:
+            if isinstance(entry, dict) and entry.get("@type") in {
+                "NewsArticle",
+                "Article",
+                "BlogPosting",
+            }:
                 return entry
     return {}
 
@@ -106,7 +119,9 @@ def _find_body(soup: BeautifulSoup) -> Tag:
 
 def _extract_footnotes(body: Tag) -> dict[str, Tag]:
     footnotes: dict[str, Tag] = {}
-    for footnote in body.select('div.footnote[data-component-name="FootnoteToDOM"], div.footnote'):
+    for footnote in body.select(
+        'div.footnote[data-component-name="FootnoteToDOM"], div.footnote'
+    ):
         number_node = footnote.select_one("a.footnote-number")
         content = footnote.select_one(".footnote-content")
         if not number_node or not content:
@@ -194,7 +209,9 @@ class MarkdownRenderer:
         return self.render_inline_children(node).strip()
 
     def render_inline_children(self, parent: Tag) -> str:
-        return self._collapse_inline("".join(self.render_inline(child) for child in parent.children))
+        return self._collapse_inline(
+            "".join(self.render_inline(child) for child in parent.children)
+        )
 
     def render_inline(self, node: Tag | NavigableString) -> str:
         if isinstance(node, Comment):
@@ -208,20 +225,27 @@ class MarkdownRenderer:
         if name == "br":
             return "\n"
         if name in {"em", "i"}:
-            text = self.render_inline_children(node).strip()
-            return f"*{text}*" if text else ""
+            leading, text, trailing = self._split_boundary_space(
+                self.render_inline_children(node)
+            )
+            return f"{leading}*{text}*{trailing}" if text else ""
         if name in {"strong", "b"}:
-            text = self.render_inline_children(node).strip()
-            return f"**{text}**" if text else ""
+            leading, text, trailing = self._split_boundary_space(
+                self.render_inline_children(node)
+            )
+            return f"{leading}**{text}**{trailing}" if text else ""
         if name == "code":
             return f"`{node.get_text(strip=True)}`"
         if name == "a":
             footnote = self._footnote_number(node)
             if footnote:
                 return f"[^{footnote}]"
-            text = self.render_inline_children(node).strip() or node.get("href", "").strip()
+            leading, text, trailing = self._split_boundary_space(
+                self.render_inline_children(node)
+            )
+            text = text or node.get("href", "").strip()
             href = self._absolute_url(node.get("href"))
-            return f"[{text}]({href})" if href and text else text
+            return f"{leading}[{text}]({href}){trailing}" if href and text else text
         if name in {"img", "picture"}:
             return self._render_image_block(node)
         if name in {"span", "sup", "sub"}:
@@ -237,7 +261,11 @@ class MarkdownRenderer:
                 continue
             marker = f"{index}." if ordered else "-"
             lines = text.splitlines()
-            items.append("\n".join([f"{marker} {lines[0]}", *[f"  {line}" for line in lines[1:]]]))
+            items.append(
+                "\n".join(
+                    [f"{marker} {lines[0]}", *[f"  {line}" for line in lines[1:]]]
+                )
+            )
         return "\n".join(items)
 
     def _render_image_block(self, node: Tag) -> str:
@@ -266,7 +294,9 @@ class MarkdownRenderer:
             src = data.get("srcNoWatermark") or data.get("src")
             if src:
                 return str(src)
-        image_link = container.select_one('a[data-component-name="Image2ToDOM"], a.image-link')
+        image_link = container.select_one(
+            'a[data-component-name="Image2ToDOM"], a.image-link'
+        )
         if image_link and image_link.get("href"):
             return str(image_link["href"])
         return str(img.get("src") or "")
@@ -277,12 +307,16 @@ class MarkdownRenderer:
         href = node.get("href") or ""
         if component_name != "FootnoteAnchorToDOM" and "footnote-anchor" not in classes:
             return None
-        match = re.search(r"footnote-(\d+)", href) or re.search(r"(\d+)", node.get_text(strip=True))
+        match = re.search(r"footnote-(\d+)", href) or re.search(
+            r"(\d+)", node.get_text(strip=True)
+        )
         return match.group(1) if match else None
 
     def _is_image_container(self, node: Tag) -> bool:
         classes = set(node.get("class") or [])
-        return "captioned-image-container" in classes or bool(node.select_one('a[data-component-name="Image2ToDOM"], a.image-link'))
+        return "captioned-image-container" in classes or bool(
+            node.select_one('a[data-component-name="Image2ToDOM"], a.image-link')
+        )
 
     def _should_drop(self, node: Tag) -> bool:
         if isinstance(node, Comment):
@@ -308,6 +342,18 @@ class MarkdownRenderer:
         if not self.base_url:
             return url
         return urljoin(self.base_url, url)
+
+    def _split_boundary_space(self, raw: str) -> tuple[str, str, str]:
+        """Split whitespace off the edges of inline content so it can be
+        re-emitted outside emphasis/link markers (Markdown emphasis may not
+        start or end with a space, and Substack often nests the boundary
+        space inside the tag)."""
+        text = raw.strip()
+        if not text:
+            return "", "", ""
+        leading = " " if raw[0].isspace() else ""
+        trailing = " " if raw[-1].isspace() else ""
+        return leading, text, trailing
 
     def _clean_text(self, text: str) -> str:
         return text.replace("\xa0", " ")
